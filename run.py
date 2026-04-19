@@ -9,6 +9,20 @@ import os
 import argparse
 
 
+def load_environment() -> None:
+    """Load .env files into the environment if present."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+
+    # Load base env first, then allow .env.local to override it.
+    for env_file in [".env", ".env.local"]:
+        if os.path.exists(env_file):
+            load_dotenv(env_file, override=True)
+            print(f"✅ Loaded environment from {env_file}")
+
+
 def print_banner():
     """Print application banner."""
     print("🚀 n8n-workflows Advanced Search Engine")
@@ -33,6 +47,11 @@ def check_requirements() -> bool:
         import fastapi
     except ImportError:
         missing_deps.append("fastapi")
+
+    try:
+        import dotenv
+    except ImportError:
+        missing_deps.append("python-dotenv")
 
     if missing_deps:
         print(f"❌ Missing dependencies: {', '.join(missing_deps)}")
@@ -94,8 +113,9 @@ def start_server(host: str = "127.0.0.1", port: int = 8000, reload: bool = False
     print("Press Ctrl+C to stop the server")
     print("-" * 50)
 
-    # Configure database path
-    os.environ["WORKFLOW_DB_PATH"] = "database/workflows.db"
+    # Configure database path only if not explicitly set
+    if not os.environ.get("WORKFLOW_DB_PATH"):
+        os.environ["WORKFLOW_DB_PATH"] = "database/workflows.db"
 
     # Start uvicorn with better configuration
     import uvicorn
@@ -112,6 +132,7 @@ def start_server(host: str = "127.0.0.1", port: int = 8000, reload: bool = False
 
 def main():
     """Main entry point with command line arguments."""
+    load_environment()
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(
         description="N8N Workflows Search Engine",
@@ -127,10 +148,15 @@ Examples:
     )
 
     parser.add_argument(
-        "--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)"
+        "--host",
+        default=os.environ.get("HOST", "127.0.0.1"),
+        help="Host to bind to (default: 127.0.0.1)",
     )
     parser.add_argument(
-        "--port", type=int, default=8000, help="Port to bind to (default: 8000)"
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", 8000)),
+        help="Port to bind to (default: 8000)",
     )
     parser.add_argument(
         "--reindex", action="store_true", help="Force database reindexing"
@@ -150,6 +176,7 @@ Examples:
     ci_mode = os.environ.get("CI", "").lower() in ("true", "1", "yes")
     skip_index = args.skip_index or ci_mode
 
+    load_environment()
     print_banner()
 
     # Check dependencies
